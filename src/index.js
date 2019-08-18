@@ -122,7 +122,7 @@ export const changeDocId = async function(docRef, newKey) {
 /***************************************************************************************/
 
 export class standards {
-  constructor(ref, name = '', asObject = false) {
+  constructor(ref, asObject = false, name = '') {
     this.ref = ref
     this.name = name
     this.asObject = asObject
@@ -145,46 +145,46 @@ export class standards {
     this.constructor.delete(id, this.ref)
   }
 
-  static async getAll(ref, asObject = false) {
+  static async getAll(ref, asObject = false, name = '') {
     try {
       return await queryFirestore(ref, asObject)
     } catch (e) {
-      console.error('DB error getAll() of ' + this.name + '\n' + e)
+      console.error('DB error getAll() of ' + name + '\n' + e)
     }
   }
-  static async get(id, ref) {
+  static async get(id, ref, name = '') {
     try {
       return await queryFirestore(ref.doc(id))
     } catch (e) {
-      console.error('DB error get() of ' + this.name + '\n' + e)
+      console.error('DB error get() of ' + name + '\n' + e)
     }
   }
-  static async add(data, ref) {
+  static async add(data, ref, name = '') {
     try {
       return await addToFirestore(ref, data)
     } catch (e) {
-      console.error('DB error add() in ' + this.name + '\n' + e)
+      console.error('DB error add() in ' + name + '\n' + e)
     }
   }
-  static async set(data, id, ref) {
+  static async set(data, id, ref, name = '') {
     try {
       return await setToFirestore(ref.doc(id), data)
     } catch (e) {
-      console.error('DB error set() in ' + this.name + '\n' + e)
+      console.error('DB error set() in ' + name + '\n' + e)
     }
   }
 
-  static async delete(id, ref) {
+  static async delete(id, ref, name = '') {
     try {
       await ref.doc(id).delete()
     } catch (e) {
-      console.error('DB error delete() in ' + this.name + '\n' + e)
+      console.error('DB error delete() in ' + name + '\n' + e)
     }
   }
 }
 
 /***************************************************************************************/
-/** This class simplifies the workflow to set an on change listener of a firestore  */
+/** This class simplifies the workflow to set an onChangeListener of a firestore  */
 /** WARNING: Do this at your own risk, only do this if you are sure what you are doing */
 /***************************************************************************************/
 
