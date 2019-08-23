@@ -121,7 +121,7 @@ export const changeDocId = async function(docRef, newKey) {
 /** WARNING: Do this at your own risk, only do this if you are sure what you are doing */
 /***************************************************************************************/
 
-export class standards {
+export class Standards {
   constructor(ref, asObject = false, name = '') {
     this.ref = ref
     this.name = name
@@ -129,20 +129,20 @@ export class standards {
   }
 
   async getAll() {
-    this.constructor.getAll(this.ref, this.asObject)
+    return this.constructor.getAll(this.ref, this.asObject, this.name)
   }
   async get(id) {
-    this.constructor.get(id, this.ref)
+    return this.constructor.get(id, this.ref, this.name)
   }
   async add(data) {
-    this.constructor.add(data, this.ref)
+    return this.constructor.add(data, this.ref, this.name)
   }
   async set(data, id) {
-    this.set(data, id, this.ref)
+    return this.constructor.set(data, id, this.ref, this.name)
   }
 
   async delete(id) {
-    this.constructor.delete(id, this.ref)
+    return this.constructor.delete(id, this.ref, this.name)
   }
 
   static async getAll(ref, asObject = false, name = '') {
@@ -176,7 +176,7 @@ export class standards {
 
   static async delete(id, ref, name = '') {
     try {
-      await ref.doc(id).delete()
+      return await ref.doc(id).delete()
     } catch (e) {
       console.error('DB error delete() in ' + name + '\n' + e)
     }
@@ -189,20 +189,22 @@ export class standards {
 /***************************************************************************************/
 
 // example
-// const commitFunctionsForStore = {
-//   add: function exampleFunctionAdd(obj,storeName) {
-//     store.commit(storeName + '/' + 'ADD', obj)
-//   },
-//   update: function exampleFunctionUpdate(obj,storeName) {
-//     store.commit(storeName + '/' + 'UPDATE', obj)
-//   },
-//   remove: function exampleFunctionRemove(obj,storeName) {
-//     store.commit(storeName + '/' + 'REMOVE', obj)
-//   },
-//   removeAll: function exampleFunctionRemove(storeName) {
-//     store.commit(storeName + '/' + 'REMOVE_ALL')
-//   }
-// }
+export function vuexCommitFunctionsForStore(store) {
+  return {
+    add: (obj, storeName) => {
+      store.commit(storeName + '/' + 'ADD', obj)
+    },
+    update: (obj, storeName) => {
+      store.commit(storeName + '/' + 'UPDATE', obj)
+    },
+    remove: (obj, storeName) => {
+      store.commit(storeName + '/' + 'REMOVE', obj)
+    },
+    removeAll: storeName => {
+      store.commit(storeName + '/' + 'REMOVE_ALL')
+    }
+  }
+}
 
 export class Listener {
   constructor(ref, commitFunctions, options = {}) {
@@ -224,7 +226,10 @@ export class Listener {
       if (this.refFunction != null) {
         ref = this.refFunction(this.ref, this.options)
       }
-      const listener = this.constructor.getStaticListener(ref, resetListener)
+      const listener = this.constructor.getListener(ref, this.commitFunctions, {
+        storeName: this.storeName,
+        log: this.log
+      })
 
       if (listener != null) {
         this.listeners.push(listener)
@@ -266,7 +271,10 @@ export class Listener {
       return listener
     } catch (e) {
       console.error(
-        'DB error getStaticListener(ref) in ' + storeName + '\n' + e
+        'DB error getListener(ref, commitFunctions, options) in ' +
+          storeName +
+          '\n' +
+          e
       )
       return null
     }
