@@ -189,19 +189,27 @@ export class Standards {
 /***************************************************************************************/
 
 // example
-export function vuexCommitFunctionsForStore(store) {
+
+export function vuexCommitFunctionsForStore(
+  storeObj,
+  storeName,
+  add = 'ADD',
+  update = 'UPDATE',
+  remove = 'REMOVE',
+  removeAll = 'REMOVE_ALL'
+) {
   return {
-    add: (obj, storeName) => {
-      store.commit(storeName + '/' + 'ADD', obj)
+    add: obj => {
+      storeObj().commit(storeName + '/' + add, obj)
     },
-    update: (obj, storeName) => {
-      store.commit(storeName + '/' + 'UPDATE', obj)
+    update: obj => {
+      storeObj().commit(storeName + '/' + update, obj)
     },
-    remove: (obj, storeName) => {
-      store.commit(storeName + '/' + 'REMOVE', obj)
+    remove: obj => {
+      storeObj().commit(storeName + '/' + remove, obj)
     },
-    removeAll: storeName => {
-      store.commit(storeName + '/' + 'REMOVE_ALL')
+    removeAll: () => {
+      storeObj().commit(storeName + '/' + removeAll)
     }
   }
 }
@@ -210,40 +218,53 @@ export class Listener {
   constructor(ref, commitFunctions, options = {}) {
     this.listeners = []
     this.ref = ref
-    this.storeName = _saveGet(options.storeName, '')
+    this.name = _saveGet(options.name, '')
     this.commitFunctions = commitFunctions
     this.log = _saveGet(options.log, false)
     this.refFunction = _saveGet(options.refFunction, null)
   }
-  async getListener(resetListener = false) {
+  async getListener(options = {}, resetListener = false) {
     if (this.listeners.length > 1 || resetListener) {
-      this.detachListeners
-      console.info(this.storeName + ': To much listeners all detached')
+      this.detachListeners()
+      if (!resetListener)
+        console.info(this.name + ': To much listeners all detached')
     }
 
     if (this.listeners.length === 0) {
       let ref = this.ref
       if (this.refFunction != null) {
-        ref = this.refFunction(this.ref, this.options)
+        ref = this.refFunction(this.ref, options)
       }
-      const listener = this.constructor.getListener(ref, this.commitFunctions, {
-        storeName: this.storeName,
-        log: this.log
-      })
 
-      if (listener != null) {
-        this.listeners.push(listener)
+      options.name = this.name
+      options.log = this.log
+      try {
+        const listener = await this.constructor.getListener(
+          ref,
+          this.commitFunctions,
+          options
+        )
+
+        if (listener != null) {
+          this.listeners.push(listener)
+          return listener
+        }
+      } catch (e) {
+        console.error(e)
+        return null
       }
+    } else {
+      return this.listeners[0]
     }
   }
 
   static async getListener(ref, commitFunctions, options) {
-    const storeName = _saveGet(options.storeName, '')
+    const name = _saveGet(options.name, '')
     const log = _saveGet(options.log, false)
 
-    if (!commitFunctions) console.error('No commitFunctions defined')
+    if (!commitFunctions) throw new Error('No commitFunctions defined')
 
-    commitFunctions['removeAll'](storeName)
+    commitFunctions['removeAll']()
 
     try {
       const listener = await ref.onSnapshot(function(snapshot) {
@@ -253,26 +274,26 @@ export class Listener {
           obj.path = change.doc.ref.path
 
           if (change.type === 'added') {
-            commitFunctions['add'](obj, storeName)
+            commitFunctions['add'](obj)
 
-            if (log) console.info('New ' + storeName + ': ', obj)
+            if (log) console.info('New ' + name + ': ', obj)
           }
           if (change.type === 'modified') {
-            commitFunctions['update'](obj, storeName)
-            if (log) console.info('New ' + storeName + ': ', obj)
+            commitFunctions['update'](obj)
+            if (log) console.info('New ' + name + ': ', obj)
           }
           if (change.type === 'removed') {
-            commitFunctions['remove'](obj, storeName)
-            if (log) console.info('New ' + storeName + ': ', obj)
+            commitFunctions['remove'](obj)
+            if (log) console.info('New ' + name + ': ', obj)
           }
         })
       })
-      if (log) console.info('All ' + storeName + ' listener atached')
+      if (log) console.info('All ' + name + ' listener atached')
       return listener
     } catch (e) {
       console.error(
         'DB error getListener(ref, commitFunctions, options) in ' +
-          storeName +
+          name +
           '\n' +
           e
       )
@@ -286,10 +307,11 @@ export class Listener {
     })
     this.listeners = []
 
-    if (this.log) console.info('All ' + this.storeName + ' listener Detached')
+    if (this.log) console.info('All ' + this.name + ' listener Detached')
   }
 
   static detachListeners(listener) {
+    console.log(listener)
     listener()
   }
 }
