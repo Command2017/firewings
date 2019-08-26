@@ -120,65 +120,82 @@ export const changeDocId = async function(docRef, newKey) {
 /** This class contains the standard C(R)UD functions for a database connection. It can be used as a object or in a static context */
 /** WARNING: Do this at your own risk, only do this if you are sure what you are doing */
 /***************************************************************************************/
-
-export class Standards {
-  constructor(ref, asObject = false, name = '') {
+export const LOG = {
+  info: 2,
+  error: 1,
+  silent: 0
+}
+export class DBStandards {
+  constructor(ref, asObject = false, name = '', log = LOG.error) {
     this.ref = ref
     this.name = name
     this.asObject = asObject
+    this.log = log
   }
 
   async getAll() {
-    return this.constructor.getAll(this.ref, this.asObject, this.name)
+    return this.constructor.getAll(this.ref, this.asObject, this.name, this.log)
   }
   async get(id) {
-    return this.constructor.get(id, this.ref, this.name)
+    return this.constructor.get(id, this.ref, this.name, this.log)
   }
   async add(data) {
-    return this.constructor.add(data, this.ref, this.name)
+    return this.constructor.add(data, this.ref, this.name, this.log)
   }
   async set(data, id) {
-    return this.constructor.set(data, id, this.ref, this.name)
+    return this.constructor.set(data, id, this.ref, this.name, this.log)
   }
 
   async delete(id) {
-    return this.constructor.delete(id, this.ref, this.name)
+    return this.constructor.delete(id, this.ref, this.name, this.log)
   }
 
-  static async getAll(ref, asObject = false, name = '') {
+  static async getAll(ref, asObject = false, name = '', log = LOG.error) {
     try {
-      return await queryFirestore(ref, asObject)
+      const data = await queryFirestore(ref, asObject)
+      if (log >= LOG.info) console.info('Get objects from DB: ' + data)
+      return data
     } catch (e) {
-      console.error('DB error getAll() of ' + name + '\n' + e)
+      if (log >= LOG.error)
+        console.error('DB error getAll() of ' + name + '\n' + e)
     }
   }
-  static async get(id, ref, name = '') {
+  static async get(id, ref, name = '', log = LOG.error) {
     try {
-      return await queryFirestore(ref.doc(id))
+      const data = await queryFirestore(ref.doc(id))
+      if (log >= LOG.info) console.info('Get object from DB: ' + data)
+      return data
     } catch (e) {
-      console.error('DB error get() of ' + name + '\n' + e)
+      if (log >= LOG.error)
+        console.error('DB error get() of ' + name + '\n' + e)
     }
   }
-  static async add(data, ref, name = '') {
+  static async add(data, ref, name = '', log = LOG.error) {
     try {
+      if (log >= LOG.info) console.info('Add object to DB: ' + data)
       return await addToFirestore(ref, data)
     } catch (e) {
-      console.error('DB error add() in ' + name + '\n' + e)
+      if (log >= LOG.error)
+        console.error('DB error add() in ' + name + '\n' + e)
     }
   }
-  static async set(data, id, ref, name = '') {
+  static async set(data, id, ref, name = '', log = LOG.error) {
     try {
+      if (log >= LOG.info) console.info('Set object to DB: ' + data)
       return await setToFirestore(ref.doc(id), data)
     } catch (e) {
-      console.error('DB error set() in ' + name + '\n' + e)
+      if (log >= LOG.error)
+        console.error('DB error set() in ' + name + '\n' + e)
     }
   }
 
-  static async delete(id, ref, name = '') {
+  static async delete(id, ref, name = '', log = LOG.error) {
     try {
+      if (log >= LOG.info) console.info('Delete object from DB with id: ' + id)
       return await ref.doc(id).delete()
     } catch (e) {
-      console.error('DB error delete() in ' + name + '\n' + e)
+      if (log >= LOG.error)
+        console.error('DB error delete() in ' + name + '\n' + e)
     }
   }
 }
@@ -189,6 +206,52 @@ export class Standards {
 /***************************************************************************************/
 
 // example
+
+export function objectCommitFunctions(data) {
+  return {
+    add: obj => {
+      data[obj.id] = obj
+    },
+    update: obj => {
+      data[obj.id] = obj
+    },
+
+    remove: obj => {
+      delete data[obj.id]
+    },
+    removeAll: () => {
+      data = {}
+    }
+  }
+}
+
+export function arrayCommitFunctions(array) {
+  return {
+    add: obj => {
+      array.push(obj)
+    },
+    update: obj => {
+      for (var i in array) {
+        if (array[i].id == obj.id) {
+          array[i] = obj
+          break
+        }
+      }
+    },
+
+    remove: obj => {
+      for (var i in array) {
+        if (array[i].id == obj.id) {
+          array.splice(i, 1)
+          break
+        }
+      }
+    },
+    removeAll: () => {
+      array = []
+    }
+  }
+}
 
 export function vuexCommitFunctionsForStore(
   storeObj,
@@ -220,14 +283,18 @@ export class Listener {
     this.ref = ref
     this.name = _saveGet(options.name, '')
     this.commitFunctions = commitFunctions
-    this.log = _saveGet(options.log, false)
+    this.log = _saveGet(options.log, LOG.error)
     this.refFunction = _saveGet(options.refFunction, null)
   }
   async getListener(options = {}, resetListener = false) {
+    if (options == null) {
+      options = {}
+    }
     if (this.listeners.length > 1 || resetListener) {
-      this.detachListeners()
+      this.detachListener()
       if (!resetListener)
-        console.info(this.name + ': To much listeners all detached')
+        if (this.log >= LOG.info)
+          console.info(this.name + ': To much listeners all detached')
     }
 
     if (this.listeners.length === 0) {
@@ -250,7 +317,7 @@ export class Listener {
           return listener
         }
       } catch (e) {
-        console.error(e)
+        if (this.log >= LOG.error) console.error(e)
         return null
       }
     } else {
@@ -260,7 +327,7 @@ export class Listener {
 
   static async getListener(ref, commitFunctions, options) {
     const name = _saveGet(options.name, '')
-    const log = _saveGet(options.log, false)
+    const log = _saveGet(options.log, LOG.error)
 
     if (!commitFunctions) throw new Error('No commitFunctions defined')
 
@@ -276,42 +343,43 @@ export class Listener {
           if (change.type === 'added') {
             commitFunctions['add'](obj)
 
-            if (log) console.info('New ' + name + ': ', obj)
+            if (log >= LOG.info) console.info('New ' + name + ': ', obj)
           }
           if (change.type === 'modified') {
             commitFunctions['update'](obj)
-            if (log) console.info('New ' + name + ': ', obj)
+            if (log >= LOG.info) console.info('New ' + name + ': ', obj)
           }
           if (change.type === 'removed') {
             commitFunctions['remove'](obj)
-            if (log) console.info('New ' + name + ': ', obj)
+            if (log >= LOG.info) console.info('New ' + name + ': ', obj)
           }
         })
       })
-      if (log) console.info('All ' + name + ' listener atached')
+      if (log >= LOG.info) console.info('All ' + name + ' listener atached')
       return listener
     } catch (e) {
-      console.error(
-        'DB error getListener(ref, commitFunctions, options) in ' +
-          name +
-          '\n' +
-          e
-      )
+      if (log >= LOG.error)
+        console.error(
+          'DB error getListener(ref, commitFunctions, options) in ' +
+            name +
+            '\n' +
+            e
+        )
       return null
     }
   }
 
-  detachListeners() {
+  detachListener() {
     this.listeners.forEach(item => {
-      this.constructor.detachListeners(item)
+      this.constructor.detachListener(item)
     })
     this.listeners = []
 
-    if (this.log) console.info('All ' + this.name + ' listener Detached')
+    if (this.log >= LOG.info)
+      console.info('All ' + this.name + ' listener Detached')
   }
 
-  static detachListeners(listener) {
-    console.log(listener)
+  static detachListener(listener) {
     listener()
   }
 }
